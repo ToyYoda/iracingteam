@@ -1,10 +1,12 @@
 """Thin wrapper around the iRacing members-ng Data API.
 
-iRacing retired legacy email+password authentication in the 2026 S1 release
-(Dec 9 2025) and has paused issuing OAuth client IDs to third parties, so this
-client cannot perform a fresh login on its own. Instead, callers paste session
-cookies obtained from a working browser login, and we reuse them for Data API
-calls until they expire.
+STATUS (Apr 2026): parked — see README ("Current status"). Legacy
+email+password auth was retired Dec 9 2025; the /data/* endpoints now
+require OAuth2 Bearer tokens, and OAuth client-ID issuance is paused.
+The cookie-paste fallback below was verified not to work: /data/member/info
+returns 401 with a valid browser session cookie. Revive by swapping this
+client for an OAuth2 Authorization Code flow once iRacing reopens
+registration at https://oauth.iracing.com.
 
 The Data API works in two steps: most GETs return a JSON envelope with a
 short-lived S3 `link` (or a chunked `data.chunk_info`) and the actual payload
