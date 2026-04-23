@@ -45,12 +45,20 @@ class IRacingClient:
 
     def authenticate(self, email: str, password: str):
         payload = {"email": email, "password": self._encode_password(email, password)}
+        # Browser-y headers; Cloudflare in front of iRacing sometimes 405s
+        # requests that don't look like an XHR from members.iracing.com.
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://members-ng.iracing.com",
+            "Referer": "https://members-ng.iracing.com/",
+        }
         # `allow_redirects=False`: a 3xx after POST would be re-issued by
         # `requests` as GET on /auth, which iRacing answers with 405.
         r = self.session.post(
             f"{BASE_URL}/auth",
             json=payload,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             timeout=30,
             allow_redirects=False,
         )
@@ -61,14 +69,16 @@ class IRacingClient:
                 "CAPTCHA/verification is required. Sign in once via the "
                 "iRacing website, then retry."
             )
-        if r.status_code == 405:
-            raise IRacingAuthError(
-                "iRacing auth returned 405 (method not allowed). The Data API "
-                "endpoint may have moved or your account requires verification."
-            )
         if r.status_code >= 400:
-            body = r.text[:300] if r.text else ""
-            raise IRacingAuthError(f"iRacing auth HTTP {r.status_code}: {body}")
+            allow = r.headers.get("Allow", "?")
+            server = r.headers.get("Server", "?")
+            ctype = r.headers.get("Content-Type", "?")
+            body = (r.text or "")[:300].replace("\n", " ")
+            raise IRacingAuthError(
+                f"iRacing auth HTTP {r.status_code} "
+                f"(Server={server!r}, Allow={allow!r}, Content-Type={ctype!r}). "
+                f"Body: {body!r}"
+            )
 
         try:
             data = r.json()
