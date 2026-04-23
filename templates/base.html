@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}iRacing Team Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a href="{{ url_for('index') }}" class="brand">iRacing Team Tracker</a>
+    {% if session.cust_id %}
+      <nav>
+        <span class="who">Signed in as <strong>{{ session.display_name }}</strong> (#{{ session.cust_id }})</span>
+        <form method="post" action="{{ url_for('logout') }}" class="inline">
+          <button type="submit" class="link">Sign out</button>
+        </form>
+      </nav>
+    {% endif %}
+  </header>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for m in messages %}<li>{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
