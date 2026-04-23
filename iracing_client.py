@@ -21,7 +21,18 @@ class IRacingAuthError(Exception):
 class IRacingClient:
     def __init__(self, cookies=None):
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": "iracingteam/0.1"})
+        # iRacing rejects/redirects unfamiliar UAs in some regions; use a
+        # plain browser-ish UA. Content-Type is set per-request below.
+        self.session.headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json",
+            }
+        )
         if cookies:
             self.session.cookies.update(cookies)
         self.cust_id = None
@@ -34,10 +45,39 @@ class IRacingClient:
 
     def authenticate(self, email: str, password: str):
         payload = {"email": email, "password": self._encode_password(email, password)}
-        r = self.session.post(f"{BASE_URL}/auth", json=payload, timeout=30)
+        # `allow_redirects=False`: a 3xx after POST would be re-issued by
+        # `requests` as GET on /auth, which iRacing answers with 405.
+        r = self.session.post(
+            f"{BASE_URL}/auth",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+            allow_redirects=False,
+        )
+        if r.status_code in (301, 302, 303, 307, 308):
+            location = r.headers.get("Location", "")
+            raise IRacingAuthError(
+                f"iRacing auth redirected to {location!r} — usually means "
+                "CAPTCHA/verification is required. Sign in once via the "
+                "iRacing website, then retry."
+            )
+        if r.status_code == 405:
+            raise IRacingAuthError(
+                "iRacing auth returned 405 (method not allowed). The Data API "
+                "endpoint may have moved or your account requires verification."
+            )
         if r.status_code >= 400:
-            raise IRacingAuthError(f"iRacing auth HTTP {r.status_code}")
-        data = r.json()
+            body = r.text[:300] if r.text else ""
+            raise IRacingAuthError(f"iRacing auth HTTP {r.status_code}: {body}")
+
+        try:
+            data = r.json()
+        except ValueError:
+            raise IRacingAuthError(
+                f"iRacing auth returned non-JSON (HTTP {r.status_code}): "
+                f"{r.text[:200]!r}"
+            )
+
         if data.get("authcode") == 0 or data.get("verificationRequired"):
             raise IRacingAuthError(data.get("message") or "Login failed")
         self.cust_id = data.get("custId")
