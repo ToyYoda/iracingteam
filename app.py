@@ -71,17 +71,21 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
 
-    email = (request.form.get("email") or "").strip()
-    password = request.form.get("password") or ""
-    if not email or not password:
-        flash("Email and password are required.")
+    blob = (request.form.get("cookies") or "").strip()
+    if not blob:
+        flash("Paste your iRacing session cookies to sign in.")
         return render_template("login.html"), 400
 
     client = IRacingClient()
+    n = client.set_cookies_from_blob(blob)
+    if n == 0:
+        flash("No cookies could be parsed from the pasted text.")
+        return render_template("login.html"), 400
+
     try:
-        client.authenticate(email, password)
+        client.fetch_self()
     except IRacingAuthError as exc:
-        flash(f"iRacing login failed: {exc}")
+        flash(f"iRacing rejected the session: {exc}")
         return render_template("login.html"), 401
     except Exception as exc:  # network / unexpected
         flash(f"Could not reach iRacing: {exc}")

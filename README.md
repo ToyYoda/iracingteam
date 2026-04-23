@@ -19,9 +19,22 @@ export FLASK_SECRET=$(python -c 'import secrets; print(secrets.token_hex(32))')
 python app.py
 ```
 
-Then open <http://localhost:5000> and sign in with your iRacing email and
-password. Credentials are forwarded to `https://members-ng.iracing.com/auth`
-and only the returned session cookies are kept in the Flask session.
+Then open <http://localhost:5000>.
+
+## Authentication
+
+iRacing retired email+password auth on the Data API in the 2026 S1 release
+(Dec 9 2025) and has paused issuing OAuth client IDs to third parties, so
+this app **cannot log you in directly**. Instead it accepts session cookies
+from a working browser login:
+
+1. Sign in to <https://members.iracing.com> in your browser.
+2. Open DevTools (F12) → Network tab. Reload, click any request whose host
+   is `members-ng.iracing.com`.
+3. In **Headers → Request Headers**, copy the entire `Cookie:` value.
+4. Paste it on the app's login page.
+
+Cookies typically last about a day; refresh by repeating the steps.
 
 ## Notes
 

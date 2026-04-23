@@ -1,14 +1,16 @@
 """Thin wrapper around the iRacing members-ng Data API.
 
+iRacing retired legacy email+password authentication in the 2026 S1 release
+(Dec 9 2025) and has paused issuing OAuth client IDs to third parties, so this
+client cannot perform a fresh login on its own. Instead, callers paste session
+cookies obtained from a working browser login, and we reuse them for Data API
+calls until they expire.
+
 The Data API works in two steps: most GETs return a JSON envelope with a
 short-lived S3 `link` (or a chunked `data.chunk_info`) and the actual payload
 sits at that URL. `get()` transparently follows both forms.
-
-Auth uses the hashed-password scheme: base64(sha256(password + lowercase(email))).
 """
 
-import base64
-import hashlib
 import requests
 
 BASE_URL = "https://members-ng.iracing.com"
@@ -21,8 +23,6 @@ class IRacingAuthError(Exception):
 class IRacingClient:
     def __init__(self, cookies=None):
         self.session = requests.Session()
-        # iRacing rejects/redirects unfamiliar UAs in some regions; use a
-        # plain browser-ish UA. Content-Type is set per-request below.
         self.session.headers.update(
             {
                 "User-Agent": (
@@ -38,70 +38,72 @@ class IRacingClient:
         self.cust_id = None
         self.display_name = None
 
-    @staticmethod
-    def _encode_password(email: str, password: str) -> str:
-        digest = hashlib.sha256((password + email.lower()).encode("utf-8")).digest()
-        return base64.b64encode(digest).decode("utf-8")
+    # -- cookie-based login -------------------------------------------------
 
-    def authenticate(self, email: str, password: str):
-        payload = {"email": email, "password": self._encode_password(email, password)}
-        # Browser-y headers; Cloudflare in front of iRacing sometimes 405s
-        # requests that don't look like an XHR from members.iracing.com.
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/plain, */*",
-            "Origin": "https://members-ng.iracing.com",
-            "Referer": "https://members-ng.iracing.com/",
-        }
-        # `allow_redirects=False`: a 3xx after POST would be re-issued by
-        # `requests` as GET on /auth, which iRacing answers with 405.
-        r = self.session.post(
-            f"{BASE_URL}/auth",
-            json=payload,
-            headers=headers,
-            timeout=30,
-            allow_redirects=False,
-        )
-        if r.status_code in (301, 302, 303, 307, 308):
-            location = r.headers.get("Location", "")
-            raise IRacingAuthError(
-                f"iRacing auth redirected to {location!r} — usually means "
-                "CAPTCHA/verification is required. Sign in once via the "
-                "iRacing website, then retry."
-            )
-        if r.status_code >= 400:
-            allow = r.headers.get("Allow", "?")
-            server = r.headers.get("Server", "?")
-            ctype = r.headers.get("Content-Type", "?")
-            body = (r.text or "")[:300].replace("\n", " ")
-            raise IRacingAuthError(
-                f"iRacing auth HTTP {r.status_code} "
-                f"(Server={server!r}, Allow={allow!r}, Content-Type={ctype!r}). "
-                f"Body: {body!r}"
-            )
+    def set_cookies_from_blob(self, blob: str) -> int:
+        """Accept either a raw `Cookie:` header value (`a=1; b=2`) or one
+        cookie per line (`a=1`). Returns the number of cookies stored."""
+        if not blob:
+            return 0
+        # Strip a leading "Cookie:" header prefix if the user pasted the
+        # whole header line.
+        cleaned = blob.strip()
+        if cleaned.lower().startswith("cookie:"):
+            cleaned = cleaned.split(":", 1)[1]
+        # Allow either ';' or newlines as separators.
+        parts = []
+        for chunk in cleaned.replace("\r", "").split("\n"):
+            parts.extend(chunk.split(";"))
+        count = 0
+        for pair in parts:
+            pair = pair.strip()
+            if not pair or "=" not in pair:
+                continue
+            name, value = pair.split("=", 1)
+            name = name.strip()
+            value = value.strip().strip('"')
+            if name:
+                self.session.cookies.set(name, value, domain=".iracing.com")
+                count += 1
+        return count
 
-        try:
-            data = r.json()
-        except ValueError:
+    def fetch_self(self) -> dict:
+        """Hit /data/member/info to confirm cookies work and learn cust_id."""
+        info = self.get("/data/member/info")
+        # Endpoint sometimes returns the user object directly, sometimes
+        # under a top-level wrapper.
+        root = info
+        if isinstance(info, dict):
+            for key in ("data", "member"):
+                if isinstance(info.get(key), dict):
+                    root = info[key]
+                    break
+        if not isinstance(root, dict):
+            raise IRacingAuthError("Unexpected /data/member/info response shape")
+        cust_id = root.get("cust_id") or root.get("custId")
+        display_name = root.get("display_name") or root.get("displayName")
+        if not cust_id:
             raise IRacingAuthError(
-                f"iRacing auth returned non-JSON (HTTP {r.status_code}): "
-                f"{r.text[:200]!r}"
+                "Cookies were accepted by the API but no cust_id was returned. "
+                "They may be missing the irsso_membersv2 cookie."
             )
-
-        if data.get("authcode") == 0 or data.get("verificationRequired"):
-            raise IRacingAuthError(data.get("message") or "Login failed")
-        self.cust_id = data.get("custId")
-        self.display_name = data.get("displayName")
-        return data
+        self.cust_id = cust_id
+        self.display_name = display_name
+        return root
 
     def cookies_dict(self):
         return self.session.cookies.get_dict()
+
+    # -- generic GET --------------------------------------------------------
 
     def get(self, path: str, params: dict | None = None):
         """GET an iRacing data endpoint, transparently resolving link/chunks."""
         r = self.session.get(f"{BASE_URL}{path}", params=params, timeout=30)
         if r.status_code == 401:
-            raise IRacingAuthError("iRacing session expired; please log in again")
+            raise IRacingAuthError(
+                "iRacing rejected the session — cookies are invalid or expired. "
+                "Re-copy them from your browser and sign in again."
+            )
         r.raise_for_status()
         payload = r.json()
 
@@ -111,7 +113,11 @@ class IRacingClient:
             payload = r2.json()
 
         if isinstance(payload, dict):
-            chunk_info = (payload.get("data") or {}).get("chunk_info") if isinstance(payload.get("data"), dict) else payload.get("chunk_info")
+            chunk_info = (
+                (payload.get("data") or {}).get("chunk_info")
+                if isinstance(payload.get("data"), dict)
+                else payload.get("chunk_info")
+            )
             if chunk_info and chunk_info.get("chunk_file_names"):
                 base = chunk_info.get("base_download_url", "")
                 merged = []

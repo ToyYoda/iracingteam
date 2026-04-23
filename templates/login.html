@@ -1,22 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Sign in — iRacing Team Tracker{% endblock %}
 {% block content %}
-<section class="card narrow">
-  <h1>Sign in with your iRacing account</h1>
+<section class="card">
+  <h1>Sign in by pasting your iRacing session cookies</h1>
   <p class="muted">
-    Your credentials are sent directly to iRacing's API to obtain a session cookie.
-    They are not stored on this server.
+    iRacing retired its email+password Data API login in December 2025 and has
+    paused issuing OAuth client IDs to third-party apps. Until that reopens,
+    this app needs you to copy the session cookies from a working browser
+    login and paste them below.
   </p>
-  <form method="post" action="{{ url_for('login') }}">
+
+  <details open>
+    <summary>How to copy your cookies (≈30 seconds)</summary>
+    <ol class="steps">
+      <li>Open <a href="https://members.iracing.com" target="_blank" rel="noopener">members.iracing.com</a> and sign in normally.</li>
+      <li>Press <kbd>F12</kbd> to open DevTools, then switch to the <strong>Network</strong> tab.</li>
+      <li>Reload the page. In the request list, click any request whose host is
+        <code>members-ng.iracing.com</code> (look in the &ldquo;Domain&rdquo; column,
+        or filter on <code>members-ng</code>).</li>
+      <li>In the right-hand panel under <strong>Headers → Request Headers</strong>, find
+        the <code>Cookie:</code> line and copy its <em>entire value</em>.</li>
+      <li>Paste it into the box below and click sign in.</li>
+    </ol>
+    <p class="muted small">
+      Alternative: DevTools → <strong>Application → Cookies → https://members-ng.iracing.com</strong>,
+      then paste them one per line as <code>name=value</code>.
+    </p>
+    <p class="muted small">
+      Cookies usually expire after about a day. When that happens, repeat
+      the steps to refresh.
+    </p>
+  </details>
+
+  <form method="post" action="{{ url_for('login') }}" class="cookie-form">
     <label>
-      <span>Email</span>
-      <input type="email" name="email" autocomplete="username" required>
+      <span>Cookies</span>
+      <textarea name="cookies" rows="6"
+        placeholder="irsso_membersv2=xxxxx; irsso=yyyyy; AWSALB=zzzzz; ..."
+        autocomplete="off" spellcheck="false" required></textarea>
     </label>
-    <label>
-      <span>Password</span>
-      <input type="password" name="password" autocomplete="current-password" required>
-    </label>
-    <button type="submit" class="primary">Sign in</button>
+    <button type="submit" class="primary">Sign in with these cookies</button>
   </form>
+
+  <p class="muted small">
+    Cookies are stored only in your Flask session on this machine and are sent
+    only to <code>members-ng.iracing.com</code>.
+  </p>
 </section>
 {% endblock %}

@@ -76,7 +76,7 @@ form label {
 }
 form label span { display: block; margin-bottom: 0.25rem; color: var(--muted); font-size: 0.85rem; }
 
-input[type="email"], input[type="password"], input[type="text"] {
+input[type="email"], input[type="password"], input[type="text"], textarea {
   width: 100%;
   padding: 0.55rem 0.7rem;
   background: var(--panel-2);
@@ -84,7 +84,30 @@ input[type="email"], input[type="password"], input[type="text"] {
   border-radius: 6px;
   color: var(--fg);
   font-size: 1rem;
+  font-family: inherit;
 }
+
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.steps li { margin-bottom: 0.35rem; }
+kbd {
+  padding: 0.05rem 0.35rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  color: #d6deeb;
+}
+details > summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 
 button, .button {
   display: inline-block;
