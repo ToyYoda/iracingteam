@@ -38,7 +38,7 @@ def _client_from_session() -> IRacingClient | None:
     cust_id = session.get("cust_id")
     if not cookies or not cust_id:
         return None
-    client = IRacingClient(cookies=cookies)
+    client = IRacingClient.from_session_dict(cookies)
     client.cust_id = cust_id
     client.display_name = session.get("display_name")
     return client
