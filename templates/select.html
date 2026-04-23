@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Pick a driver pool{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Pick your driver pool</h1>
+  <p class="muted">
+    Hi {{ display_name or ('#' ~ cust_id) }}. Choose one of your iRacing leagues
+    (treated as a &ldquo;team&rdquo;) or use your friends list. You will always
+    be included in the pool.
+  </p>
+
+  <form method="post" action="{{ url_for('pool') }}" class="pool-form">
+    <fieldset>
+      <legend>Leagues you belong to</legend>
+      {% if leagues %}
+        <ul class="options">
+          {% for l in leagues %}
+            {% set league = l.league if l.league is mapping else l %}
+            {% set lid = league.league_id or l.league_id %}
+            {% set lname = league.league_name or l.league_name or ('League #' ~ lid) %}
+            <li>
+              <label>
+                <input type="radio" name="choice" value="league:{{ lid }}" required>
+                <span>{{ lname }}</span>
+              </label>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted small">No leagues found on your account.</p>
+      {% endif %}
+    </fieldset>
+
+    <fieldset>
+      <legend>Friends list</legend>
+      {% if friends %}
+        <label>
+          <input type="radio" name="choice" value="friends" required>
+          <span>Use my friends list ({{ friends|length }} driver{{ friends|length == 1 and '' or 's' }})</span>
+        </label>
+        <details class="friends-preview">
+          <summary>Preview</summary>
+          <ul>
+            {% for f in friends %}
+              <li>{{ f.display_name or ('#' ~ f.cust_id) }} <span class="muted small">#{{ f.cust_id }}</span></li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% else %}
+        <p class="muted small">
+          No friends list available from the iRacing API. (Some accounts do not
+          expose this via the Data API.)
+        </p>
+      {% endif %}
+    </fieldset>
+
+    <button type="submit" class="primary">Use this as my driver pool</button>
+  </form>
+</section>
+{% endblock %}

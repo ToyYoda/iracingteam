@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sign in — iRacing Team Tracker{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Sign in with your iRacing account</h1>
+  <p class="muted">
+    Your credentials are sent directly to iRacing's API to obtain a session cookie.
+    They are not stored on this server.
+  </p>
+  <form method="post" action="{{ url_for('login') }}">
+    <label>
+      <span>Email</span>
+      <input type="email" name="email" autocomplete="username" required>
+    </label>
+    <label>
+      <span>Password</span>
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="primary">Sign in</button>
+  </form>
+</section>
+{% endblock %}

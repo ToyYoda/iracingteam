@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Driver pool standings{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="stack-between">
+    <div>
+      <h1>Driver pool standings</h1>
+      <p class="muted">
+        <strong>{{ pool_label }}</strong> — {{ pool_size }} driver{{ pool_size == 1 and '' or 's' }}
+        · Season {{ year }} S{{ quarter }}
+      </p>
+    </div>
+    <a class="button ghost" href="{{ url_for('select') }}">Change pool</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Series where pool members have scored points</h2>
+  {% if series_rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Series</th>
+          <th class="num">Pool drivers scoring</th>
+          <th class="num">Pool points total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in series_rows %}
+          <tr>
+            <td>{{ s.series_name }}</td>
+            <td class="num">{{ s.drivers }}</td>
+            <td class="num">{{ s.total_points }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No pool member has scored points in any series this season yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Per-driver current standing</h2>
+  {% if driver_rows %}
+    {% for d in driver_rows %}
+      <article class="driver">
+        <header class="driver-head">
+          <div>
+            <h3>{{ d.display_name }} <span class="muted small">#{{ d.cust_id }}</span></h3>
+            <p class="muted small">{{ d.total_races }} race{{ d.total_races == 1 and '' or 's' }} this season</p>
+          </div>
+          <div class="points-total">
+            <span class="num big">{{ d.total_points }}</span>
+            <span class="muted small">championship points</span>
+          </div>
+        </header>
+        {% if d.series %}
+          <table class="compact">
+            <thead>
+              <tr>
+                <th>Series</th>
+                <th class="num">Races</th>
+                <th class="num">Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in d.series %}
+                <tr>
+                  <td>{{ s.series_name }}</td>
+                  <td class="num">{{ s.races }}</td>
+                  <td class="num">{{ s.points }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted small">No official race results this season.</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">No drivers in the pool.</p>
+  {% endif %}
+</section>
+{% endblock %}
